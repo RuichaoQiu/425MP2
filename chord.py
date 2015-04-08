@@ -33,6 +33,8 @@ class CoordinatorThread:
                     self.joinPeerThread(int(cmd.split()[1]))
                 if cmd.strip()[:4] == "show":
                     self.show(int(cmd.split()[1]))
+                if cmd.strip()[:5] == "leave":
+                    self.leavePeer(int(cmd.split()[1]))
                 cmd = self.fileHandle.readline()
 
 
@@ -67,6 +69,15 @@ class CoordinatorThread:
             if item[1] == key:
                 item[2].send("show")
                 return
+
+    def leavePeer(self, key):
+        self.ActionComplete = False
+        for item in self.Peers:
+            if item[1] == key:
+                item[2].send("leave")
+                del item
+                return
+
 
 
     def runserver(self):
@@ -173,7 +184,7 @@ class PeerThread:
                             self.predLocation = int(lmsg[2])
                             tmpconn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                             tmpconn.settimeout(2)
-                            tmpconn.connect(("localhost", int(lmsg[1])))
+                            tmpconn.connect(("localhost", int(lmsg[3])))
                             tmpconn.send("ack %d %d" % (0,int(lmsg[-1])))
                         elif lmsg[0] == "fing":
                             nt = Thread(target=self.ThreadForUpdate_Finger_Table,args=(lmsg,))
@@ -186,6 +197,9 @@ class PeerThread:
 
                         elif lmsg[0] == "closest":
                             nt = Thread(target=self.ThreadForClosest_Preceding_Finger,args=(lmsg,))
+                            nt.start()
+                        elif lmsg[0] == "recover":
+                            nt = Thread(target=self.ThreadForRecover_Finger_Table,args=(lmsg,))
                             nt.start()
                         else:
                             self.messagequeue.append(data)
@@ -206,6 +220,8 @@ class PeerThread:
                     self.Node_Join(int(lmsg[1]),int(lmsg[2]))
                 if lmsg[0] == "show":
                     self.showkey()
+                if lmsg[0] == "leave":
+                    self.leavenode()
             time.sleep(0.1)
 
     def ThreadForFind_Successor(self, lmsg):
@@ -228,6 +244,13 @@ class PeerThread:
         tmpconn.settimeout(2)
         tmpconn.connect(("localhost", int(lmsg[2])))
         tmpconn.send("ack %d %d %d" % (p1,p2,int(lmsg[-1])))
+
+    def ThreadForRecover_Finger_Table(self, lmsg):
+        self.Recover_Finger_Table(int(lmsg[1]),int(lmsg[2]),int(lmsg[3]),int(lmsg[4]))
+        tmpconn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tmpconn.settimeout(2)
+        tmpconn.connect(("localhost", int(lmsg[5])))
+        tmpconn.send("ack %d %d" % (0,int(lmsg[-1])))
 
     def Node_Join(self,p1,p2):
         global Bit
@@ -277,7 +300,7 @@ class PeerThread:
         nsoc.settimeout(2)
         nsoc.connect(("localhost", self.finger[1][1]))
         tmpid = self.RemoteCall()
-        nsoc.send("upda %d %d %d" % (self.PORT,self.KeyLocation,tmpid,))
+        nsoc.send("upda %d %d %d %d" % (self.PORT,self.KeyLocation,self.PORT,tmpid,))
         self.WaitForResponse(tmpid)
 
         # update finger table
@@ -406,6 +429,45 @@ class PeerThread:
                 self.mutex = True
                 return tid
         return -1
+
+    def leavenode(self):
+        # update successor.predecessor
+        nsoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        nsoc.settimeout(2)
+        nsoc.connect(("localhost", self.finger[1][1]))
+        tmpid = self.RemoteCall()
+        nsoc.send("upda %d %d %d %d" % (self.predecessor,self.predLocation,self.PORT,tmpid,))
+        self.WaitForResponse(tmpid)
+
+        # update others' finger table
+        global Bit
+        for i in xrange(1, Bit+1):
+            p = self.Find_Predecessor((self.KeyLocation-(1<<(i-1))+(1<<Bit)+1) % (1<<Bit))
+            #print (self.KeyLocation-(1<<(i-1))+(1<<Bit)+1) % (1<<Bit), i, p
+            if p == self.PORT:
+                continue
+            tmpconn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            tmpconn.settimeout(2)
+            tmpconn.connect(("localhost", p))
+            tmpid = self.RemoteCall()
+            tmpconn.send("recover %d %d %d %d %d %d" % (self.finger[1][1],self.finger[1][2],i,self.PORT,self.PORT,tmpid,))
+            self.WaitForResponse(tmpid)
+        self.pst.send("leave")
+
+    def Recover_Finger_Table(self,sPort,sLoc,i,oPort):
+        #print self.finger[i][1], sPort, sLoc, oPort
+        if self.PORT == oPort:
+            return
+        if self.finger[i][1] == oPort:
+            self.finger[i][1] = sPort
+            self.finger[i][2] = sLoc
+            tmpp = self.predecessor
+            tmpconn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            tmpconn.settimeout(2)
+            tmpconn.connect(("localhost", tmpp))
+            tmpid = self.RemoteCall()
+            tmpconn.send("recover %d %d %d %d %d %d" % (sPort,sLoc,i,oPort,self.PORT,tmpid,))
+            self.WaitForResponse(tmpid)
 
 
 def main():
