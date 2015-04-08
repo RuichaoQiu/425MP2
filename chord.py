@@ -332,7 +332,7 @@ class PeerThread:
     def Update_Others(self):
         global Bit
         for i in xrange(1, Bit+1):
-            print (self.KeyLocation-(1<<(i-1))+(1<<Bit)+1) % (1<<Bit), i
+            #print (self.KeyLocation-(1<<(i-1))+(1<<Bit)+1) % (1<<Bit), i
             p = self.Find_Predecessor((self.KeyLocation-(1<<(i-1))+(1<<Bit)+1) % (1<<Bit))
             if p == self.PORT:
                 continue
