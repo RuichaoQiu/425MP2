@@ -186,6 +186,13 @@ class PeerThread:
                             tmpconn.settimeout(2)
                             tmpconn.connect(("localhost", int(lmsg[3])))
                             tmpconn.send("ack %d %d" % (0,int(lmsg[-1])))
+                        elif lmsg[0] == "updatepred":
+                            self.finger[1][1] = int(lmsg[1])
+                            self.finger[1][2] = int(lmsg[2])
+                            tmpconn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                            tmpconn.settimeout(2)
+                            tmpconn.connect(("localhost", int(lmsg[3])))
+                            tmpconn.send("ack %d %d" % (0,int(lmsg[-1])))
                         elif lmsg[0] == "fing":
                             nt = Thread(target=self.ThreadForUpdate_Finger_Table,args=(lmsg,))
                             nt.start()
@@ -256,8 +263,8 @@ class PeerThread:
         global Bit
         for i in xrange(1,Bit+1):
             self.finger[i][0] = (self.KeyLocation + (1 << (i-1))) % (1 << Bit)
-        self.finger[1][1] = p1
-        self.finger[1][2] = p2
+        #self.finger[1][1] = p1
+        #self.finger[1][2] = p2
         if self.KeyLocation == 0:
             for i in xrange(1,Bit+1):
                 self.finger[i][1] = self.PORT
@@ -273,17 +280,16 @@ class PeerThread:
     def Init_Finger_Table(self):
         global InitPeerPort
         # update finger[1].node
-
+        print "join node"
         tsoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tsoc.settimeout(2)
         tsoc.connect(("localhost", InitPeerPort))
-        """
         tmpid = self.RemoteCall()
         tsoc.send("succ %d %d %d" % (self.finger[1][0],self.PORT,tmpid,))
         self.WaitForResponse(tmpid)
         self.finger[1][1] = self.EventList[tmpid][1]
         self.finger[1][2] = self.EventList[tmpid][2]
-        """
+
 
         # set predecessor
         nsoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -303,7 +309,15 @@ class PeerThread:
         nsoc.send("upda %d %d %d %d" % (self.PORT,self.KeyLocation,self.PORT,tmpid,))
         self.WaitForResponse(tmpid)
 
-        # update finger table
+        # update predecessor.successor
+        nsoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        nsoc.settimeout(2)
+        nsoc.connect(("localhost", self.predecessor))
+        tmpid = self.RemoteCall()
+        nsoc.send("updatepred %d %d %d %d" % (self.PORT,self.KeyLocation,self.PORT,tmpid,))
+        self.WaitForResponse(tmpid)
+
+        # update its own finger table
         for i in xrange(1,Bit):
             if self.inrange(self.finger[i+1][0],self.KeyLocation,(self.finger[i][2]-1+(1<<Bit))%(1<<Bit)):
                 self.finger[i+1][1] = self.finger[i][1]
@@ -315,12 +329,11 @@ class PeerThread:
                 self.finger[i+1][1] = self.EventList[tmpid][1]
                 self.finger[i+1][2] = self.EventList[tmpid][2]
 
-
     def Update_Others(self):
         global Bit
         for i in xrange(1, Bit+1):
+            print (self.KeyLocation-(1<<(i-1))+(1<<Bit)+1) % (1<<Bit), i
             p = self.Find_Predecessor((self.KeyLocation-(1<<(i-1))+(1<<Bit)+1) % (1<<Bit))
-            #print (self.KeyLocation-(1<<(i-1))+(1<<Bit)+1) % (1<<Bit), i, p
             if p == self.PORT:
                 continue
             tmpconn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
