@@ -20,28 +20,37 @@ class CoordinatorThread:
         self.joinPeerThread(0)
         self.rthread = Thread(target=self.readcommand)
         self.rthread.start()
+        self.showallcomplete = True
 
     def readcommand(self):
         cmd = None
         if self.fileHandle:
             cmd = self.fileHandle.readline()
         while 1:
-            while cmd and self.ActionComplete:
+            while cmd and self.ActionComplete and self.showallcomplete:
                 cmd = cmd.strip()
-                self.ActionComplete = False
                 if cmd.strip()[:4] == "join":
+                    self.ActionComplete = False
                     self.joinPeerThread(int(cmd.split()[1]))
                 if cmd.strip()[:4] == "show":
-                    self.show(int(cmd.split()[1]))
+                    if cmd.split()[1] == "all":
+                        self.showall()
+                    else:
+                        self.ActionComplete = False
+                        self.show(int(cmd.split()[1]))
                 if cmd.strip()[:5] == "leave":
+                    self.ActionComplete = False
                     self.leavePeer(int(cmd.split()[1]))
+                if cmd.strip()[:4] == "find":
+                    self.ActionComplete = False
+                    self.findkey(int(cmd.split()[1]),int(cmd.split()[2]))
                 cmd = self.fileHandle.readline()
 
 
     def joinPeerThread(self, key):
         # Create New PeerThread
         PT = PeerThread(key, self.CurPort)
-        time.sleep(0.2)
+        time.sleep(0.02)
         st = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         st.settimeout(2)
         st.connect(("localhost", self.CurPort))
@@ -64,21 +73,34 @@ class CoordinatorThread:
             st.send("join %d %d" % (miniport,miniloc%256))
 
     def show(self, key):
-        self.ActionComplete = False
         for item in self.Peers:
             if item[1] == key:
                 item[2].send("show")
                 return
 
+    def showall(self):
+        self.showallcomplete = False
+        self.Peers.sort(key=lambda x:x[1])
+        for item in self.Peers:
+            while not self.ActionComplete:
+                pass
+            self.ActionComplete = False
+            item[2].send("show")
+
     def leavePeer(self, key):
-        self.ActionComplete = False
         for item in self.Peers:
             if item[1] == key:
                 item[2].send("leave")
-                del item
+                self.Peers.remove(item)
                 return
 
-
+    def findkey(self,p,k):
+        for item in self.Peers:
+            if item[1] == p:
+                item[2].send("find %d" % (k))
+                return
+        print "oh"
+        self.ActionComplete = True
 
     def runserver(self):
         global CoordinatorPort
@@ -107,6 +129,9 @@ class CoordinatorThread:
                             self.ActionComplete = True
                         elif data[:4] == "show":
                             print data[5:]
+                            self.ActionComplete = True
+                        elif data[:4] == "find":
+                            print "Find the key at Node %d" % (int(data.split()[1]))
                             self.ActionComplete = True
                     except:
                         sock.close()
@@ -229,7 +254,9 @@ class PeerThread:
                     self.showkey()
                 if lmsg[0] == "leave":
                     self.leavenode()
-            time.sleep(0.1)
+                if lmsg[0] == "find":
+                    self.findkey(int(lmsg[1]))
+            #time.sleep(0.01)
 
     def ThreadForFind_Successor(self, lmsg):
         p1,p2 = self.Find_Successor(int(lmsg[1]))
@@ -280,7 +307,6 @@ class PeerThread:
     def Init_Finger_Table(self):
         global InitPeerPort
         # update finger[1].node
-        print "join node"
         tsoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tsoc.settimeout(2)
         tsoc.connect(("localhost", InitPeerPort))
@@ -361,7 +387,7 @@ class PeerThread:
     # Wait for Remote Procedure Call completed
     def WaitForResponse(self,tid):
         while not self.EventList[tid][0]:
-            time.sleep(0.02)
+            pass
 
     def inrange(self,x,y,z):
         global Bit
@@ -374,6 +400,7 @@ class PeerThread:
         else:
             return False
 
+    # return successor of index, format: [portnumber, keylocation]
     def Find_Successor(self,index):
         portnumber = self.Find_Predecessor(index)
         return self.getsucc(portnumber)
@@ -416,7 +443,6 @@ class PeerThread:
 
     def showkey(self):
         global Bit
-        """
         cur = (self.predLocation+1) % (1 << Bit)
         self.keys = []
         while cur != self.KeyLocation:
@@ -427,10 +453,12 @@ class PeerThread:
         for item in self.keys:
             st += " " + str(item)
         """
+        # For test
         print self.KeyLocation
         for item in self.finger:
             print item
         st = "123"
+        """
         self.pst.send("show "+st)
 
     def RemoteCall(self):
@@ -481,6 +509,10 @@ class PeerThread:
             tmpid = self.RemoteCall()
             tmpconn.send("recover %d %d %d %d %d %d" % (sPort,sLoc,i,oPort,self.PORT,tmpid,))
             self.WaitForResponse(tmpid)
+
+    def findkey(self,k):
+        curkey = self.Find_Successor(k)[1]
+        self.pst.send("find %d" % (curkey))
 
 
 
