@@ -56,21 +56,7 @@ class CoordinatorThread:
         st.connect(("localhost", self.CurPort))
         self.Peers.append([PT, key, st])
         self.CurPort += 1
-        if key == 0:
-            st.send("join 3001 0")
-        else:
-            miniloc = 10000
-            miniport = 0
-            for item in self.Peers:
-                tmp = item[1]
-                if tmp == key:
-                    continue;
-                if tmp < key:
-                    tmp += 256
-                if tmp < miniloc:
-                    miniloc = tmp
-                    miniport = item[0].PORT
-            st.send("join %d %d" % (miniport,miniloc%256))
+        st.send("join")
 
     def show(self, key):
         for item in self.Peers:
@@ -249,7 +235,7 @@ class PeerThread:
                 #print "exec "+msg
                 lmsg = msg.split()
                 if lmsg[0] == "join":
-                    self.Node_Join(int(lmsg[1]),int(lmsg[2]))
+                    self.Node_Join()
                 if lmsg[0] == "show":
                     self.showkey()
                 if lmsg[0] == "leave":
@@ -286,12 +272,10 @@ class PeerThread:
         tmpconn.connect(("localhost", int(lmsg[5])))
         tmpconn.send("ack %d %d" % (0,int(lmsg[-1])))
 
-    def Node_Join(self,p1,p2):
+    def Node_Join(self):
         global Bit
         for i in xrange(1,Bit+1):
             self.finger[i][0] = (self.KeyLocation + (1 << (i-1))) % (1 << Bit)
-        #self.finger[1][1] = p1
-        #self.finger[1][2] = p2
         if self.KeyLocation == 0:
             for i in xrange(1,Bit+1):
                 self.finger[i][1] = self.PORT
