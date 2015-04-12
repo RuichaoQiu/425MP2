@@ -32,7 +32,6 @@ class CoordinatorThread:
                 cmd = cmd.strip()
                 #print "Read "+cmd
                 if cmd.strip()[:4] == "join":
-                    self.ActionComplete = False
                     self.joinPeerThread(int(cmd.split()[1]))
                 if cmd.strip()[:4] == "show":
                     if cmd.split()[1] == "all":
@@ -41,7 +40,6 @@ class CoordinatorThread:
                         self.ActionComplete = False
                         self.show(int(cmd.split()[1]))
                 if cmd.strip()[:5] == "leave":
-                    self.ActionComplete = False
                     self.leavePeer(int(cmd.split()[1]))
                 if cmd.strip()[:4] == "find":
                     self.ActionComplete = False
@@ -50,6 +48,12 @@ class CoordinatorThread:
 
 
     def joinPeerThread(self, key):
+        self.ActionComplete = False
+        for item in self.Peers:
+            if item[1] == key:
+                print "Node %d already exists!" % (key)
+                self.ActionComplete = True
+                return
         # Create New PeerThread
         PT = PeerThread(key, self.CurPort)
         time.sleep(0.02)
@@ -77,11 +81,14 @@ class CoordinatorThread:
             item[2].send("show")
 
     def leavePeer(self, key):
+        self.ActionComplete = False
         for item in self.Peers:
             if item[1] == key:
                 item[2].send("leave")
                 self.Peers.remove(item)
                 return
+        print "Node %d does not exist!" % (key)
+        self.ActionComplete = True
 
     def findkey(self,p,k):
         for item in self.Peers:
