@@ -399,7 +399,7 @@ class PeerThread:
             tmpconn.send("fing %d %d %d %d %d" % (self.PORT,self.KeyLocation,i,self.PORT,tmpid,))
             global JoinMsgCnt
             JoinMsgCnt += 1
-            #print "finger + 1"
+            #print "update others"
             self.WaitForResponse(tmpid)
 
 
@@ -478,8 +478,8 @@ class PeerThread:
         tmpconn.connect(("localhost", pn))
         tmpid = self.RemoteCall()
         tmpconn.send("getsuc %d %d" % (self.PORT,tmpid,))
-        global JoinMsgCnt
-        JoinMsgCnt += 1
+        #global JoinMsgCnt
+        #JoinMsgCnt += 1
         #print "getsuc + 1"
         self.WaitForResponse(tmpid)
         return [self.EventList[tmpid][1], self.EventList[tmpid][2]]
