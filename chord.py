@@ -7,6 +7,9 @@ Bit = 8
 CoordinatorPort = 3000
 InitPeerPort = 3001
 
+'''for experiment use'''
+JoinMsgCnt = 0
+FindMsgCnt = 0
 
 class CoordinatorThread:
     def __init__(self,fileHandle):
@@ -119,6 +122,7 @@ class CoordinatorThread:
                         #print "Receive "+data
                         if data == "join":
                             print "Join Complete!"
+                            print "Join msg cnt: ", JoinMsgCnt
                             self.ActionComplete = True
                         elif data == "leave":
                             print "Leave Complete!"
@@ -187,6 +191,7 @@ class PeerThread:
                     sockfd, addr = server_socket.accept()
                     CONNECTION_LIST.append(sockfd)
                 else:
+
                     try:
                         data = sock.recv(RECV_BUFFER)
                         #print "receive "+data
@@ -265,6 +270,9 @@ class PeerThread:
         tmpconn.settimeout(2)
         tmpconn.connect(("localhost", int(lmsg[2])))
         tmpconn.send("ack %d %d %d" % (p1,p2,int(lmsg[-1])))
+        global JoinMsgCnt
+        JoinMsgCnt += 1
+        #print "ThreadForFind_Successor ack + 1"
 
     def ThreadForUpdate_Finger_Table(self, lmsg):
         self.Update_Finger_Table(int(lmsg[1]),int(lmsg[2]),int(lmsg[3]))
@@ -272,6 +280,9 @@ class PeerThread:
         tmpconn.settimeout(2)
         tmpconn.connect(("localhost", int(lmsg[4])))
         tmpconn.send("ack %d %d" % (0,int(lmsg[-1])))
+        global JoinMsgCnt
+        JoinMsgCnt += 1
+        #print "ThreadForUpdate_Finger_Table ack + 1"
 
     def ThreadForClosest_Preceding_Finger(self, lmsg):
         p1,p2 = self.Closest_Preceding_Finger(int(lmsg[1]))
@@ -279,6 +290,9 @@ class PeerThread:
         tmpconn.settimeout(2)
         tmpconn.connect(("localhost", int(lmsg[2])))
         tmpconn.send("ack %d %d %d" % (p1,p2,int(lmsg[-1])))
+        global JoinMsgCnt
+        JoinMsgCnt += 1
+        #print "ThreadForClosest_Preceding_Finger ack + 1"
 
     def ThreadForRecover_Finger_Table(self, lmsg):
         self.Recover_Finger_Table(int(lmsg[1]),int(lmsg[2]),int(lmsg[3]),int(lmsg[4]))
@@ -286,6 +300,9 @@ class PeerThread:
         tmpconn.settimeout(2)
         tmpconn.connect(("localhost", int(lmsg[5])))
         tmpconn.send("ack %d %d" % (0,int(lmsg[-1])))
+        global JoinMsgCnt
+        JoinMsgCnt += 1
+        #print "ThreadForRecover_Finger_Table ack + 1"
 
     def Node_Join(self):
         global Bit
@@ -311,6 +328,9 @@ class PeerThread:
         tsoc.connect(("localhost", InitPeerPort))
         tmpid = self.RemoteCall()
         tsoc.send("succ %d %d %d" % (self.finger[1][0],self.PORT,tmpid,))
+        global JoinMsgCnt
+        JoinMsgCnt += 1
+        #print "update finger[1].node + 1"
         self.WaitForResponse(tmpid)
         self.finger[1][1] = self.EventList[tmpid][1]
         self.finger[1][2] = self.EventList[tmpid][2]
@@ -322,6 +342,8 @@ class PeerThread:
         nsoc.connect(("localhost", self.finger[1][1]))
         tmpid = self.RemoteCall()
         nsoc.send("pred %d %d" % (self.PORT,tmpid,))
+        JoinMsgCnt += 1
+        #print "set predecessor + 1"
         self.WaitForResponse(tmpid)
         self.predecessor = self.EventList[tmpid][1]
         self.predLocation = self.EventList[tmpid][2]
@@ -332,6 +354,8 @@ class PeerThread:
         nsoc.connect(("localhost", self.finger[1][1]))
         tmpid = self.RemoteCall()
         nsoc.send("upda %d %d %d %d" % (self.PORT,self.KeyLocation,self.PORT,tmpid,))
+        JoinMsgCnt += 1
+        #print "update successor.predecessor + 1"
         self.WaitForResponse(tmpid)
 
         # update predecessor.successor
@@ -340,6 +364,8 @@ class PeerThread:
         nsoc.connect(("localhost", self.predecessor))
         tmpid = self.RemoteCall()
         nsoc.send("updatepred %d %d %d %d" % (self.PORT,self.KeyLocation,self.PORT,tmpid,))
+        JoinMsgCnt += 1
+        #print "update predecessor.successor + 1"
         self.WaitForResponse(tmpid)
 
         # update its own finger table
@@ -350,22 +376,30 @@ class PeerThread:
             else:
                 tmpid = self.RemoteCall()
                 tsoc.send("succ %d %d %d" % (self.finger[i+1][0],self.PORT,tmpid,))
+                #print "get succ + 1"
+                JoinMsgCnt += 1
                 self.WaitForResponse(tmpid)
                 self.finger[i+1][1] = self.EventList[tmpid][1]
                 self.finger[i+1][2] = self.EventList[tmpid][2]
 
     def Update_Others(self):
         global Bit
+        #print "update others!"
         for i in xrange(1, Bit+1):
-            #print (self.KeyLocation-(1<<(i-1))+(1<<Bit)+1) % (1<<Bit), i
-            p = self.Find_Predecessor((self.KeyLocation-(1<<(i-1))+(1<<Bit)+1) % (1<<Bit))
+            #print i, self.KeyLocation, (self.KeyLocation-(1<<(i-1))+(1<<Bit) + 1) % (1<<Bit)
+            p = self.Find_Predecessor((self.KeyLocation-(1<<(i-1))+(1<<Bit) + 1) % (1<<Bit))
+            #print "p ", p
             if p == self.PORT:
+                #print "return here!"
                 continue
             tmpconn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             tmpconn.settimeout(2)
             tmpconn.connect(("localhost", p))
             tmpid = self.RemoteCall()
             tmpconn.send("fing %d %d %d %d %d" % (self.PORT,self.KeyLocation,i,self.PORT,tmpid,))
+            global JoinMsgCnt
+            JoinMsgCnt += 1
+            #print "finger + 1"
             self.WaitForResponse(tmpid)
 
 
@@ -381,6 +415,9 @@ class PeerThread:
             tmpconn.connect(("localhost", tmpp))
             tmpid = self.RemoteCall()
             tmpconn.send("fing %d %d %d %d %d" % (sPort,sLoc,i,self.PORT,tmpid,))
+            global JoinMsgCnt
+            JoinMsgCnt += 1
+            #print "finger + 1"
             self.WaitForResponse(tmpid)
 
     # Wait for Remote Procedure Call completed
@@ -416,6 +453,9 @@ class PeerThread:
             tmpconn.connect(("localhost", cur[0]))
             tmpid = self.RemoteCall()
             tmpconn.send("closest %d %d %d" % (index,self.PORT,tmpid,))
+            global JoinMsgCnt
+            JoinMsgCnt += 1
+            #print "closest + 1"
             self.WaitForResponse(tmpid)
             cur = [self.EventList[tmpid][1], self.EventList[tmpid][2]]
             succ = self.getsucc(cur[0])
@@ -438,6 +478,9 @@ class PeerThread:
         tmpconn.connect(("localhost", pn))
         tmpid = self.RemoteCall()
         tmpconn.send("getsuc %d %d" % (self.PORT,tmpid,))
+        global JoinMsgCnt
+        JoinMsgCnt += 1
+        #print "getsuc + 1"
         self.WaitForResponse(tmpid)
         return [self.EventList[tmpid][1], self.EventList[tmpid][2]]
 
@@ -461,6 +504,8 @@ class PeerThread:
         st = "123"
         """
         self.pst.send("show "+st)
+        #global JoinMsgCnt
+        #JoinMsgCnt += 1
 
     def RemoteCall(self):
         while 1:
@@ -498,6 +543,7 @@ class PeerThread:
 
     def Recover_Finger_Table(self,sPort,sLoc,i,oPort):
         #print self.finger[i][1], sPort, sLoc, oPort
+        print "call recover function!"
         if self.PORT == oPort:
             return
         if self.finger[i][1] == oPort:
