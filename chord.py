@@ -399,7 +399,7 @@ class PeerThread:
             tmpconn.send("fing %d %d %d %d %d" % (self.PORT,self.KeyLocation,i,self.PORT,tmpid,))
             global JoinMsgCnt
             JoinMsgCnt += 1
-            #print "finger + 1"
+            #print "update others"
             self.WaitForResponse(tmpid)
 
 
