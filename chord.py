@@ -21,6 +21,7 @@ class CoordinatorThread:
         self.rthread = Thread(target=self.readcommand)
         self.rthread.start()
         self.showallcomplete = True
+        self.showallcounter = 0
 
     def readcommand(self):
         cmd = None
@@ -29,6 +30,7 @@ class CoordinatorThread:
         while 1:
             while cmd and self.ActionComplete and self.showallcomplete:
                 cmd = cmd.strip()
+                #print "Read "+cmd
                 if cmd.strip()[:4] == "join":
                     self.ActionComplete = False
                     self.joinPeerThread(int(cmd.split()[1]))
@@ -66,6 +68,7 @@ class CoordinatorThread:
 
     def showall(self):
         self.showallcomplete = False
+        self.showallcounter = 0
         self.Peers.sort(key=lambda x:x[1])
         for item in self.Peers:
             while not self.ActionComplete:
@@ -116,6 +119,11 @@ class CoordinatorThread:
                         elif data[:4] == "show":
                             print data[5:]
                             self.ActionComplete = True
+                            if not self.showallcomplete:
+                                self.showallcounter += 1
+                                if self.showallcounter == len(self.Peers):
+                                    self.showallcomplete = True
+
                         elif data[:4] == "find":
                             print "Find the key at Node %d" % (int(data.split()[1]))
                             self.ActionComplete = True
@@ -373,6 +381,7 @@ class PeerThread:
         while not self.EventList[tid][0]:
             pass
 
+    # Judge whether x is in [y,z]
     def inrange(self,x,y,z):
         global Bit
         if z < y:
@@ -424,6 +433,7 @@ class PeerThread:
         tmpconn.send("getsuc %d %d" % (self.PORT,tmpid,))
         self.WaitForResponse(tmpid)
         return [self.EventList[tmpid][1], self.EventList[tmpid][2]]
+
 
     def showkey(self):
         global Bit
