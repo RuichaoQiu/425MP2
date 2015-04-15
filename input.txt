@@ -1,4 +1,6 @@
-join 184
-join 59
-join 172
-join 38
+join 1
+show all
+join 3
+show all
+join 6
+show all
