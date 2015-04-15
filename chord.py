@@ -11,9 +11,9 @@ InitPeerPort = 3001
 MsgCnt = 0
 
 class CoordinatorThread:
-    def __init__(self,fileHandle):
+    def __init__(self,filename):
         global InitPeerPort
-        self.fileHandle = fileHandle
+        self.filename = filename
         self.Peers = []
         self.CurPort = InitPeerPort
         self.ActionComplete = False
@@ -28,13 +28,16 @@ class CoordinatorThread:
 
         self.rthread = Thread(target=self.readcommand)
         self.rthread.start()
+
         self.showallcomplete = True
         self.showallcounter = 0
+
+        self.firstwrite = True
 
     def execommand(self):
         while 1:
             if self.cmdqueue and self.ActionComplete and self.showallcomplete:
-                cmd = self.cmdqueue[0].strip()
+                cmd = self.cmdqueue[0]
                 self.cmdqueue.pop(0)
                 if cmd.strip()[:4] == "join":
                     self.joinPeerThread(int(cmd.split()[1]))
@@ -53,14 +56,14 @@ class CoordinatorThread:
 
     def readcommand(self):
         cmd = None
-        #if self.fileHandle:
-        #    cmd = self.fileHandle.readline()
         while 1:
             socket_list = [sys.stdin]
             read_sockets, write_sockets, error_sockets = select.select(socket_list, [], [])
             for sock in read_sockets:
                 cmd = sys.stdin.readline()
                 self.cmdqueue.append(cmd)
+                #print "cached cmd ", cmd
+                #print self.cmdqueue
 
     def joinPeerThread(self, key):
         self.ActionComplete = False
@@ -141,6 +144,13 @@ class CoordinatorThread:
                             self.ActionComplete = True
                         elif data[:4] == "show":
                             print data[5:]
+                            if self.filename:
+                                mode = 'a'
+                                if self.firstwrite:
+                                    mode = 'w'
+                                    self.firstwrite = False
+                                with open(self.filename, mode) as OUTPUT:
+                                    OUTPUT.write("{show_result}\n".format(show_result=data[5:]))
                             self.ActionComplete = True
                             if not self.showallcomplete:
                                 self.showallcounter += 1
@@ -148,7 +158,7 @@ class CoordinatorThread:
                                     self.showallcomplete = True
 
                         elif data[:4] == "find":
-                            #print "Find the key at Node %d" % (int(data.split()[1]))
+                            print "Find the key at Node %d" % (int(data.split()[1]))
                             self.ActionComplete = True
                             #print "Msg cnt: ", MsgCnt
                     except:
@@ -552,7 +562,6 @@ class PeerThread:
 
     def Recover_Finger_Table(self,sPort,sLoc,i,oPort):
         #print self.finger[i][1], sPort, sLoc, oPort
-        print "call recover function!"
         if self.PORT == oPort:
             return
         if self.finger[i][1] == oPort:
@@ -569,20 +578,3 @@ class PeerThread:
     def findkey(self,k):
         curkey = self.Find_Successor(k)[1]
         self.pst.send("find %d" % (curkey))
-
-
-
-def main():
-
-    #fileHandle = None
-    #if sys.argv[1] and sys.argv[1] == "-g":
-    #    fileHandle = open(sys.argv[2],"r")
-    fileHandle = open("input.txt","r")
-    CThread = CoordinatorThread(fileHandle)
-
-if __name__ == '__main__':
-    main()
-
-
-
-
