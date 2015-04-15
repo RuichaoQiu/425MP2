@@ -1,6 +1,0 @@
-join 1
-show all
-join 3
-show all
-join 6
-show all
