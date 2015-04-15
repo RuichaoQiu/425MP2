@@ -113,7 +113,7 @@ class CoordinatorThread:
             if item[1] == p:
                 item[2].send("find %d" % (k))
                 return
-        print "oh"
+        print "Node {key} does not exist!".format(key=p)
         self.ActionComplete = True
 
     def runserver(self):
