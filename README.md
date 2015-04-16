@@ -25,6 +25,11 @@ I. Usage
 		show all
 			show all keys stored in all nodes, one line for each node
 
+	C Output Information
+
+	    The execution result of all commands will be outputted in Terminal
+	    Only the result of "show" and "show all" operation will be outputted to the file
+
 
 II. File list
 
